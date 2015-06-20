@@ -14,6 +14,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type Encoder interface {
+	Encode(interface{}) error
+}
+
+type Decoder interface {
+	Decode(v interface{}) error
+}
+
 const iterations = 500
 
 var desiredLRP = receptor.DesiredLRPCreateRequest{
@@ -64,18 +72,7 @@ var _ = Describe("Measurements", func() {
 		encoder := json.NewEncoder(&buff)
 		decoder := json.NewDecoder(&buff)
 
-		measure(b,
-			func(v []*receptor.DesiredLRPCreateRequest) {
-				err := encoder.Encode(v)
-				Expect(err).NotTo(HaveOccurred())
-			},
-			func() []*receptor.DesiredLRPCreateRequest {
-				var decoded []*receptor.DesiredLRPCreateRequest
-				err := decoder.Decode(&decoded)
-				Expect(err).NotTo(HaveOccurred())
-				return decoded
-			},
-		)
+		measure(b, encoder, decoder)
 	}, 10)
 
 	Measure("encoding/gob", func(b Benchmarker) {
@@ -85,26 +82,16 @@ var _ = Describe("Measurements", func() {
 		encoder := gob.NewEncoder(&buff)
 		decoder := gob.NewDecoder(&buff)
 
-		measure(b,
-			func(v []*receptor.DesiredLRPCreateRequest) {
-				err := encoder.Encode(v)
-				Expect(err).NotTo(HaveOccurred())
-			},
-			func() []*receptor.DesiredLRPCreateRequest {
-				var decoded []*receptor.DesiredLRPCreateRequest
-				err := decoder.Decode(&decoded)
-				Expect(err).NotTo(HaveOccurred())
-				return decoded
-			},
-		)
+		measure(b, encoder, decoder)
 	}, 10)
 })
 
-func measure(b Benchmarker, encode func([]*receptor.DesiredLRPCreateRequest), decode func() []*receptor.DesiredLRPCreateRequest) {
+func measure(b Benchmarker, encoder Encoder, decoder Decoder) {
 	runtime := b.Time("overall", func() {
 		encodingRuntime := b.Time("encoding", func() {
 			for i := 0; i < iterations; i++ {
-				encode([]*receptor.DesiredLRPCreateRequest{&desiredLRP})
+				err := encoder.Encode([]*receptor.DesiredLRPCreateRequest{&desiredLRP})
+				Expect(err).NotTo(HaveOccurred())
 			}
 		})
 
@@ -113,7 +100,8 @@ func measure(b Benchmarker, encode func([]*receptor.DesiredLRPCreateRequest), de
 		var decoded []*receptor.DesiredLRPCreateRequest
 		decodingRuntime := b.Time("decoding", func() {
 			for i := 0; i < iterations; i++ {
-				decoded = decode()
+				err := decoder.Decode(&decoded)
+				Expect(err).NotTo(HaveOccurred())
 			}
 		})
 
@@ -122,13 +110,15 @@ func measure(b Benchmarker, encode func([]*receptor.DesiredLRPCreateRequest), de
 		Expect(*decoded[0]).To(Equal(desiredLRP))
 
 		encodingRuntime = b.Time("encoding-high-volume", func() {
-			encode(desiredLRPs)
+			err := encoder.Encode(desiredLRPs)
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		b.RecordValue("encoding-high-volume-throughput (MB)", float64(len(desiredLRPs))*sizeInMB/encodingRuntime.Seconds())
 
 		decodingRuntime = b.Time("decoding", func() {
-			decoded = decode()
+			err := decoder.Decode(&decoded)
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		Expect(len(decoded)).To(Equal(len(desiredLRPs)))
