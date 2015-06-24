@@ -1,0 +1,44 @@
+package encoding_benchmark;
+
+message EnvEntry {
+required string key = 1;
+optional string value = 2;
+}
+
+message RouteEntry {
+required string route_type = 1;
+required bytes data = 2;
+}
+
+message DownloadAction {
+required   string From = 1;
+required   string To = 2;
+}
+
+message RunAction {
+  required string Path = 1;
+  repeated string Args = 2;
+  repeated EnvEntry env = 3;
+}
+
+message Action {
+ optional DownloadAction download_action =1;
+ optional RunAction run_action = 2;
+}
+
+message DesiredLRPCreateRequest {
+required   string ProcessGuid = 1;
+required   string Domain = 2;
+required   string rootFS = 3;
+required   int32 Instances = 4;
+required   bool Privileged = 5;
+required   string LogGuid = 6;
+ repeated RouteEntry routes = 7;
+  repeated uint32 Ports = 10;
+  required Action setup = 11;
+  required Action action = 12;
+  required Action monitor = 13;
+} 
+ message DesiredLRPCreateRequests {
+ repeated DesiredLRPCreateRequest requests = 1;
+ }
